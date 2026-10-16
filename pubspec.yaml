@@ -13,6 +13,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   file_picker: ^8.1.7
   pdfrx: ^2.6.5
+  shared_preferences: ^2.3.3
 
 dev_dependencies:
   flutter_test:

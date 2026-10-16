@@ -2,9 +2,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'reader_screen.dart';
+import '../services/read_position_service.dart';
 
 class LibraryScreen extends StatelessWidget {
-  const LibraryScreen({super.key});
+  LibraryScreen({super.key});
+
+  final _libraryService = LibraryService();
 
   Future<void> _openPdf(BuildContext context) async {
     final result = await FilePicker.platform.pickFiles(
@@ -13,14 +16,18 @@ class LibraryScreen extends StatelessWidget {
       allowMultiple: false,
       withData: false,
     );
-    if (!context.mounted || result == null || result.files.isEmpty) return;
+    if (!context.mounted) return;
+    if (result == null || result.files.isEmpty) return;
     final path = result.files.single.path;
     if (path == null) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No se pudo acceder al archivo seleccionado.')),
       );
       return;
     }
+    await _libraryService.addBook(path);
+    if (!context.mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ReaderScreen(path: path, title: result.files.single.name),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../services/pdf_text_extractor.dart';
+import '../services/read_position_service.dart';
 
 enum ReaderMode { adaptive, original }
 
@@ -18,6 +19,7 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   final _extractor = PdfTextExtractor();
   final _scrollController = ScrollController();
+  final _positionService = ReadPositionService();
   ExtractedPdf? _document;
   String? _error;
   bool _loading = true;
@@ -43,6 +45,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         _document = extracted;
         _loading = false;
       });
+      await _restorePosition();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -52,9 +55,21 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
+  Future<void> _restorePosition() async {
+    final saved = await _positionService.load(widget.path);
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients || _document == null) return;
+      _scrollController.jumpTo(
+        saved.clamp(0.0, _scrollController.position.maxScrollExtent),
+      );
+    });
+  }
+
   void _rememberAnchor() {
     if (_scrollController.hasClients) {
       _anchor = _scrollController.offset.round();
+      _positionService.save(widget.path, _scrollController.offset);
     }
   }
 

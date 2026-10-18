@@ -298,8 +298,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void _jumpToChapter(Chapter chapter) {
     if (!_scrollController.hasClients || _document == null) return;
     final extent = _scrollController.position.maxScrollExtent;
-    final ratio = _document!.fullText.isNotEmpty ? (chapter.startIndex / _document!.fullText.length).clamp(0.0, 1.0) : 0.0;
-    final offset = ratio * extent;
+    final offset = _offsetForTextIndex(chapter.startIndex);
+    _anchor = chapter.startIndex;
     _scrollController.animateTo(
       offset.clamp(0.0, extent),
       duration: const Duration(milliseconds: 300),
@@ -309,13 +309,31 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   void _step(int direction) {
     if (!_scrollController.hasClients || _document == null) return;
-    final amount = MediaQuery.sizeOf(context).height * 0.85;
-    final target = (_scrollController.offset + amount * direction)
-        .clamp(0.0, _scrollController.position.maxScrollExtent);
+    final extent = _scrollController.position.maxScrollExtent;
+    final paragraph = _textParagraph;
+    double target;
+    if (paragraph != null) {
+      final currentTopY = (_scrollController.offset - _textTopPadding)
+          .clamp(0.0, paragraph.size.height);
+      final pageDistance = _scrollController.position.viewportDimension;
+      final targetY = (currentTopY + pageDistance * direction)
+          .clamp(0.0, paragraph.size.height);
+      final targetIndex = paragraph
+          .getPositionForOffset(Offset(0, targetY))
+          .offset
+          .clamp(0, _document!.fullText.length);
+      target = _offsetForTextIndex(targetIndex);
+      _anchor = targetIndex;
+    } else {
+      // Fallback only if Flutter does not expose the paragraph render object.
+      target = _scrollController.offset +
+          _scrollController.position.viewportDimension * direction;
+    }
+    target = target.clamp(0.0, extent);
     _scrollController.animateTo(
       target,
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOutCubic,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.linear,
     );
   }
 
@@ -374,9 +392,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
           onScaleStart: _onScaleStart,
           onScaleUpdate: _onScaleUpdate,
           onScaleEnd: _onScaleEnd,
-          child: SelectableText(
+          child: SelectableText.rich(
+            TextSpan(children: _styledTextSpans()),
             key: _textKey,
-            _document!.fullText,
             style: TextStyle(
               fontSize: _fontSize,
               height: _settings.lineHeight,
@@ -387,6 +405,48 @@ class _ReaderScreenState extends State<ReaderScreen> {
         ),
       ),
     );
+  }
+
+  List<InlineSpan> _styledTextSpans() {
+    final document = _document!;
+    final chapters = document.chapters
+        .where((chapter) =>
+            chapter.startIndex >= 0 &&
+            chapter.startIndex + chapter.title.length <= document.fullText.length &&
+            document.fullText.substring(
+                  chapter.startIndex,
+                  chapter.startIndex + chapter.title.length,
+                ) ==
+                chapter.title)
+        .toList()
+      ..sort((a, b) => a.startIndex.compareTo(b.startIndex));
+
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    for (final chapter in chapters) {
+      if (chapter.startIndex < cursor) continue;
+      if (chapter.startIndex > cursor) {
+        spans.add(TextSpan(text: document.fullText.substring(cursor, chapter.startIndex)));
+      }
+      spans.add(TextSpan(
+        text: chapter.title,
+        style: TextStyle(
+          fontSize: _fontSize * 1.28,
+          fontWeight: FontWeight.w800,
+          color: _settings.theme == 'dark'
+              ? const Color(0xFFFFC477)
+              : const Color(0xFF28685D),
+          backgroundColor: _settings.theme == 'dark'
+              ? const Color(0xFF41413A)
+              : const Color(0xFFFFDDAA),
+        ),
+      ));
+      cursor = chapter.startIndex + chapter.title.length;
+    }
+    if (cursor < document.fullText.length) {
+      spans.add(TextSpan(text: document.fullText.substring(cursor)));
+    }
+    return spans;
   }
 
   void _onScaleStart(ScaleStartDetails details) {

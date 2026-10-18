@@ -19,7 +19,11 @@ class ReadPositionService {
   /// Lee el desplazamiento guardado para [path]. Devuelve 0 si no hay registro.
   Future<double> load(String path) async {
     final prefs = await _prefs();
-    return prefs.getDouble(_key(path)) ?? 0;
+    try {
+      return prefs.getDouble(_key(path)) ?? 0;
+    } catch (_) {
+      return 0;
+    }
   }
 
   /// Elimina la posición guardada para [path].
@@ -38,30 +42,3 @@ class ReadPositionService {
   }
 }
 
-/// Serializa/deserializa la biblioteca de libros importados.
-class LibraryService {
-  static const _key = 'library_books';
-
-  Future<SharedPreferences> _prefs() async => SharedPreferences.getInstance();
-
-  /// Guarda la lista de rutas de libros importados.
-  Future<void> saveLibrary(List<String> paths) async {
-    final prefs = await _prefs();
-    await prefs.setStringList(_key, paths.toSet().toList());
-  }
-
-  /// Lee las rutas de libros importados.
-  Future<List<String>> loadLibrary() async {
-    final prefs = await _prefs();
-    return prefs.getStringList(_key) ?? <String>[];
-  }
-
-  /// Añade un libro a la biblioteca si no está ya presente.
-  Future<void> addBook(String path) async {
-    final current = await loadLibrary();
-    if (!current.contains(path)) {
-      current.add(path);
-      await saveLibrary(current);
-    }
-  }
-}

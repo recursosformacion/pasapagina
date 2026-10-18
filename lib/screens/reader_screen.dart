@@ -3,14 +3,23 @@ import 'package:pdfrx/pdfrx.dart';
 
 import '../services/pdf_text_extractor.dart';
 import '../services/read_position_service.dart';
+import '../services/library_service.dart';
+import '../services/marker_service.dart';
+import '../services/read_settings_service.dart';
+import '../models/marker.dart';
+import '../models/read_settings.dart';
+import '../models/chapter.dart';
+import 'markers_screen.dart';
+import 'reading_settings_screen.dart';
 
 enum ReaderMode { adaptive, original }
 
 class ReaderScreen extends StatefulWidget {
-  const ReaderScreen({super.key, required this.path, required this.title});
+  const ReaderScreen({super.key, required this.path, required this.title, this.initialPosition});
 
   final String path;
   final String title;
+  final double? initialPosition;
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -20,6 +29,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   final _extractor = PdfTextExtractor();
   final _scrollController = ScrollController();
   final _positionService = ReadPositionService();
+  final _libraryService = LibraryService();
+  final _markerService = MarkerService();
+  final _settingsService = ReadSettingsService();
+  ReadSettings _settings = const ReadSettings();
   ExtractedPdf? _document;
   String? _error;
   bool _loading = true;
@@ -28,13 +41,44 @@ class _ReaderScreenState extends State<ReaderScreen> {
   double _fontSize = 20;
   int _anchor = 0;
 
-  static const _paper = Color(0xFFF5EBD8);
-  static const _ink = Color(0xFF34342F);
+  Color get _bgColor {
+    switch (_settings.theme) {
+      case 'white':
+        return Colors.white;
+      case 'dark':
+        return const Color(0xFF2A2A2A);
+      case 'cream':
+      default:
+        return const Color(0xFFF5EBD8);
+    }
+  }
+
+  Color get _inkColor {
+    switch (_settings.theme) {
+      case 'white':
+        return const Color(0xFF1A1A1A);
+      case 'dark':
+        return const Color(0xFFF5EBD8);
+      case 'cream':
+      default:
+        return const Color(0xFF34342F);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    _loadSettings();
     _loadText();
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = await _settingsService.loadSettings(widget.path);
+    if (!mounted) return;
+    setState(() {
+      _settings = settings;
+      _fontSize = settings.fontSize;
+    });
   }
 
   Future<void> _loadText() async {
@@ -57,48 +101,178 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _restorePosition() async {
     final saved = await _positionService.load(widget.path);
-    if (!mounted) return;
+    final target = widget.initialPosition ?? saved;
+    if (!mounted || _document == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients || _document == null) return;
-      _scrollController.jumpTo(
-        saved.clamp(0.0, _scrollController.position.maxScrollExtent),
-      );
+      final extent = _scrollController.position.maxScrollExtent;
+      final ratio = _document!.fullText.isNotEmpty ? (target / _document!.fullText.length).clamp(0.0, 1.0) : 0.0;
+      final offset = ratio * extent;
+      _scrollController.jumpTo(offset.clamp(0.0, extent));
     });
   }
 
   void _rememberAnchor() {
-    if (_scrollController.hasClients) {
-      _anchor = _scrollController.offset.round();
-      _positionService.save(widget.path, _scrollController.offset);
+    if (_scrollController.hasClients && _document != null) {
+      final offset = _scrollController.offset;
+      final extent = _scrollController.position.maxScrollExtent;
+      final ratio = extent > 0 ? (offset / extent).clamp(0.0, 1.0) : 0.0;
+      final charIndex = ratio * _document!.fullText.length;
+      _anchor = charIndex.round();
+      _positionService.save(widget.path, charIndex);
+      _libraryService.updatePosition(widget.path, charIndex);
     }
   }
 
   void _changeFont(double value) {
     _rememberAnchor();
     setState(() => _fontSize = value);
+    _settingsService.saveSettings(_settings.copyWith(fontSize: value), widget.path);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(
-          _anchor.toDouble().clamp(0, _scrollController.position.maxScrollExtent),
-        );
+      if (_scrollController.hasClients && _document != null) {
+        final extent = _scrollController.position.maxScrollExtent;
+        final ratio = _document!.fullText.isNotEmpty ? (_anchor / _document!.fullText.length).clamp(0.0, 1.0) : 0.0;
+        final offset = ratio * extent;
+        _scrollController.jumpTo(offset.clamp(0.0, extent));
       }
     });
   }
 
+  String _textFragmentAt(double offset) {
+    if (_document == null) return '';
+    final extent = _scrollController.position.maxScrollExtent;
+    if (extent <= 0) return '';
+    final ratio = (offset / extent).clamp(0.0, 1.0);
+    final index = (ratio * _document!.fullText.length).round().clamp(0, _document!.fullText.length - 1);
+    const half = 60;
+    final start = (index - half).clamp(0, _document!.fullText.length);
+    final end = (index + half).clamp(0, _document!.fullText.length);
+    return _document!.fullText.substring(start, end).trim();
+  }
+
+  Future<void> _addMarker() async {
+    if (_scrollController.hasClients == false) return;
+    final controller = TextEditingController();
+    final result = await showDialog<String?>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Añadir marcador'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                hintText: 'Etiqueta opcional',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 1,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _textFragmentAt(_scrollController.offset),
+              style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || result == null) return;
+    final offset = _scrollController.hasClients ? _scrollController.offset : 0.0;
+    final extent = _scrollController.hasClients ? _scrollController.position.maxScrollExtent : 0.0;
+    final ratio = extent > 0 ? (offset / extent).clamp(0.0, 1.0) : 0.0;
+    final charIndex = (ratio * (_document?.fullText.length ?? 0)).roundToDouble();
+    await _markerService.saveMarker(
+      Marker(
+        id: '${widget.path}:${DateTime.now().millisecondsSinceEpoch}',
+        bookId: widget.path,
+        position: charIndex,
+        label: result.isEmpty ? null : result,
+        createdAt: DateTime.now(),
+        textFragment: _textFragmentAt(offset),
+      ),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Marcador guardado')),
+    );
+  }
+
+  Future<void> _openChapterIndex() async {
+    if (_document == null || _document!.chapters.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se detectaron capítulos en este libro.')),
+      );
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: ListView.builder(
+          itemCount: _document!.chapters.length,
+          itemBuilder: (_, i) {
+            final chapter = _document!.chapters[i];
+            return ListTile(
+              leading: const Icon(Icons.menu_book_rounded),
+              title: Text(chapter.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+              subtitle: chapter.pageIndex != null ? Text('Página ${chapter.pageIndex! + 1}') : null,
+              onTap: () {
+                Navigator.pop(context);
+                _jumpToChapter(chapter);
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _jumpToChapter(Chapter chapter) {
+    if (!_scrollController.hasClients || _document == null) return;
+    final extent = _scrollController.position.maxScrollExtent;
+    final ratio = _document!.fullText.isNotEmpty ? (chapter.startIndex / _document!.fullText.length).clamp(0.0, 1.0) : 0.0;
+    final offset = ratio * extent;
+    _scrollController.animateTo(
+      offset.clamp(0.0, extent),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   void _step(int direction) {
     if (!_scrollController.hasClients || _document == null) return;
-    final amount = MediaQuery.sizeOf(context).height * 0.72;
+    final amount = MediaQuery.sizeOf(context).height * 0.85;
     final target = (_scrollController.offset + amount * direction)
         .clamp(0.0, _scrollController.position.maxScrollExtent);
     _scrollController.animateTo(
       target,
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
     );
   }
 
   @override
   void dispose() {
+    if (_scrollController.hasClients && _document != null) {
+      final offset = _scrollController.offset;
+      final extent = _scrollController.position.maxScrollExtent;
+      final ratio = extent > 0 ? (offset / extent).clamp(0.0, 1.0) : 0.0;
+      final charIndex = (ratio * _document!.fullText.length).roundToDouble();
+      _libraryService.markRead(
+        widget.path,
+        time: DateTime.now(),
+        position: charIndex,
+      );
+      _positionService.save(widget.path, charIndex);
+    }
     _scrollController.dispose();
     super.dispose();
   }
@@ -106,7 +280,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _mode == ReaderMode.adaptive ? _paper : Colors.white,
+      backgroundColor: _bgColor,
       body: SafeArea(
         child: Stack(
           children: [
@@ -119,40 +293,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
             else
               _buildAdaptiveText(),
             if (_mode == ReaderMode.adaptive && _document != null)
-              Positioned.fill(
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 42,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: () => _step(-1),
-                        child: const SizedBox.expand(),
-                      ),
-                    ),
-                    const Spacer(),
-                    SizedBox(
-                      width: 42,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: () => _step(1),
-                        child: const SizedBox.expand(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _buildPageMargins(),
             if (_mode == ReaderMode.adaptive)
-              Positioned.fill(
-                child: Align(
-                  alignment: Alignment.center,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTap: () => setState(() => _controlsVisible = !_controlsVisible),
-                    child: const SizedBox(width: 90, height: 120),
-                  ),
-                ),
-              ),
+              _buildCenterTap(),
             if (_controlsVisible) _buildControls(),
           ],
         ),
@@ -168,15 +311,62 @@ class _ReaderScreenState extends State<ReaderScreen> {
       },
       child: SingleChildScrollView(
         controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(28, 36, 28, 48),
-        child: SelectableText(
-          _document!.fullText,
-          style: TextStyle(
-            fontSize: _fontSize,
-            height: 1.62,
-            color: _ink,
-            fontFamily: 'serif',
+        padding: EdgeInsets.fromLTRB(_settings.margins, 36, _settings.margins, 48),
+        child: GestureDetector(
+          onScaleUpdate: _onScaleUpdate,
+          child: SelectableText(
+            _document!.fullText,
+            style: TextStyle(
+              fontSize: _fontSize,
+              height: _settings.lineHeight,
+              color: _inkColor,
+              fontFamily: _settings.fontFamily,
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails details) {
+    final newSize = (_fontSize * details.scale).clamp(10.0, 60.0);
+    _changeFont(newSize);
+  }
+
+  Widget _buildPageMargins() {
+    return Positioned.fill(
+      child: Row(
+        children: [
+          SizedBox(
+            width: 70,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _step(-1),
+              child: const SizedBox.expand(),
+            ),
+          ),
+          const Spacer(),
+          SizedBox(
+            width: 70,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _step(1),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCenterTap() {
+    return Positioned.fill(
+      child: Align(
+        alignment: Alignment.center,
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => setState(() => _controlsVisible = !_controlsVisible),
+          child: const SizedBox(width: 90, height: 120),
         ),
       ),
     );
@@ -191,10 +381,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
           children: [
             const Icon(Icons.picture_as_pdf_rounded, size: 54, color: Color(0xFF4F8A7B)),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'No se ha podido preparar la lectura adaptable',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _ink),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _inkColor),
             ),
             const SizedBox(height: 10),
             Text(_error ?? 'El documento no contiene texto extraíble.'),
@@ -218,7 +408,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       right: 0,
       top: 0,
       child: Material(
-        color: _paper.withValues(alpha: 0.97),
+        color: _bgColor.withValues(alpha: 0.97),
         elevation: 4,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(8, 8, 8, 14),
@@ -237,7 +427,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       widget.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w700, color: _ink),
+                      style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF34342F)),
                     ),
                   ),
                   IconButton(
@@ -262,6 +452,44 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   ),
                   const Icon(Icons.text_increase_rounded),
                 ],
+              ),
+              Row(
+                children: [
+                  const Icon(Icons.bookmark_add_rounded),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _addMarker,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Añadir marcador'),
+                    ),
+                  ),
+                  const Icon(Icons.bookmark_rounded),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => MarkersScreen(bookId: widget.path, bookTitle: widget.title),
+                        ),
+                      ),
+                      icon:                   const Icon(Icons.list, size: 18),
+                      label: const Text('Ver marcadores'),
+                    ),
+                  ),
+                ],
+              ),
+              FilledButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ReadingSettingsScreen(bookId: widget.path),
+                  ),
+                ),
+                icon: const Icon(Icons.tune, size: 18),
+                label: const Text('Ajustes de lectura'),
+              ),
+              FilledButton.icon(
+                onPressed: _openChapterIndex,
+                icon: const Icon(Icons.list_alt, size: 18),
+                label: const Text('Índice de capítulos'),
               ),
               SegmentedButton<ReaderMode>(
                 segments: const [

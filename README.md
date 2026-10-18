@@ -329,5 +329,3 @@ El prototipo será satisfactorio si:
 - **Privacidad:** funcionamiento local sin cuenta obligatoria.
 
 ---
-
-**Siguiente paso:** implementar la estructura inicial de Flutter y validar la continuidad de lectura con PDF reales antes de ampliar la aplicación.

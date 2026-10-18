@@ -45,7 +45,7 @@ class PasapaginaApp extends StatelessWidget {
           ),
         ),
       ),
-      home: LibraryScreen(),
+      home: const LibraryScreen(),
     );
   }
 }

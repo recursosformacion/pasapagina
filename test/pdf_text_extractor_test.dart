@@ -4,13 +4,13 @@ import 'package:pasapagina/services/pdf_text_extractor.dart';
 void main() {
   group('PdfTextExtractor.normalizePageText', () {
     test('joins visual line wraps and removes blank gaps between text blocks', () {
-      const raw = 'La primera línea del párrafo\\n'
-          'continúa aquí.\\n\\n'
-          'El siguiente párrafo\\n'
+      const raw = 'La primera línea del párrafo\n'
+          'continúa aquí.\n\n'
+          'El siguiente párrafo\n'
           'también continúa.';
       expect(
         PdfTextExtractor.normalizePageText(raw),
-        'La primera línea del párrafo continúa aquí.\\nEl siguiente párrafo también continúa.',
+        'La primera línea del párrafo continúa aquí.\nEl siguiente párrafo también continúa.',
       );
     });
   });

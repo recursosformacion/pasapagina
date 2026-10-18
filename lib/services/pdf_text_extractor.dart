@@ -26,7 +26,7 @@ class PdfTextExtractor {
         pageTexts.add(normalizePageText(raw?.fullText ?? ''));
       }
       final usable = pageTexts.where((text) => text.isNotEmpty).length;
-      final fullText = pageTexts.where((text) => text.isNotEmpty).join('\n\n');
+      final fullText = pageTexts.where((text) => text.isNotEmpty).join('\\n');
       if (usable == 0 || fullText.trim().length < 40) {
         throw const PdfExtractionException(
           'Este PDF no contiene suficiente texto seleccionable. Puede ser un documento escaneado; prueba el modo PDF original.',
@@ -43,20 +43,20 @@ class PdfTextExtractor {
   /// single newline. PDF pages often expose every visual line as a newline;
   /// showing those directly makes text wrap prematurely and creates blank gaps.
   static String normalizePageText(String rawText) {
-    final text = rawText.replaceAll('\\r\\n', '\\n').replaceAll('\\r', '\\n').trim();
+    final text = rawText.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
     if (text.isEmpty) return '';
 
     // A blank line separates blocks; soft line breaks within each block are
     // joined with spaces so Flutter can reflow the text to the screen width.
-    final blocks = text.split(RegExp(r'\\n[ \\t]*\\n+'));
+    final blocks = text.split(RegExp(r'\n[ \t]*\n+'));
     return blocks
         .map((block) => block
-            .split('\\n')
+            .split('\n')
             .map((line) => line.trim())
             .where((line) => line.isNotEmpty)
             .join(' '))
         .where((block) => block.isNotEmpty)
-        .join('\\n');
+        .join('\n');
   }
 
   /// Heurística para detectar encabezados de capítulo en el texto normalizado.

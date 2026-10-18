@@ -203,7 +203,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _restoreAnchorAfterLayout();
   }
 
-  String _textFragmentAt(double offset) {
+  String _textFragmentAt() {
     if (_document == null) return '';
     if (_document!.fullText.isEmpty) return '';
     final index = _currentTextIndex().clamp(0, _document!.fullText.length - 1);
@@ -233,7 +233,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
             const SizedBox(height: 10),
             Text(
-              _textFragmentAt(_scrollController.offset),
+              _textFragmentAt(),
               style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
             ),
           ],
@@ -257,7 +257,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         position: charIndex,
         label: result.isEmpty ? null : result,
         createdAt: DateTime.now(),
-        textFragment: _textFragmentAt(offset),
+        textFragment: _textFragmentAt(),
       ),
     );
     if (!mounted) return;

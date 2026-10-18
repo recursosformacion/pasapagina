@@ -23,7 +23,7 @@ class PdfTextExtractor {
       final pageTexts = <String>[];
       for (final page in document.pages) {
         final raw = await page.loadText();
-        pageTexts.add((raw?.fullText ?? '').trim());
+        pageTexts.add(normalizePageText(raw?.fullText ?? ''));
       }
       final usable = pageTexts.where((text) => text.isNotEmpty).length;
       final fullText = pageTexts.where((text) => text.isNotEmpty).join('\n\n');
@@ -39,6 +39,26 @@ class PdfTextExtractor {
     }
   }
 
+  /// Removes PDF layout line wraps while retaining paragraph boundaries as a
+  /// single newline. PDF pages often expose every visual line as a newline;
+  /// showing those directly makes text wrap prematurely and creates blank gaps.
+  static String normalizePageText(String rawText) {
+    final text = rawText.replaceAll('\\r\\n', '\\n').replaceAll('\\r', '\\n').trim();
+    if (text.isEmpty) return '';
+
+    // A blank line separates blocks; soft line breaks within each block are
+    // joined with spaces so Flutter can reflow the text to the screen width.
+    final blocks = text.split(RegExp(r'\\n[ \\t]*\\n+'));
+    return blocks
+        .map((block) => block
+            .split('\\n')
+            .map((line) => line.trim())
+            .where((line) => line.isNotEmpty)
+            .join(' '))
+        .where((block) => block.isNotEmpty)
+        .join('\\n');
+  }
+
   /// Heurística para detectar encabezados de capítulo en el texto normalizado.
   static List<Chapter> detectChapters(String fullText, List<String> pageTexts) {
     final chapters = <Chapter>[];
@@ -51,8 +71,8 @@ class PdfTextExtractor {
       for (int i = 0; i < pageTexts.length; i++) {
         final page = pageTexts[i].trim();
         if (page.isEmpty) continue;
-        if (charIndex < acc + page.length + 2) return i;
-        acc += page.length + 2;
+        if (charIndex < acc + page.length + 1) return i;
+        acc += page.length + 1;
       }
       return pageTexts.length - 1;
     }

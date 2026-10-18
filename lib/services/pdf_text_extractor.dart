@@ -57,27 +57,25 @@ class PdfTextExtractor {
       return pageTexts.length - 1;
     }
 
-    final patterns = RegExp(r'^(cap[ií]tulo|chapter|parte|part|secci[oó]n|section|cap\.|libro|book)\b', caseSensitive: false);
+    // Avoid guessing from arbitrary uppercase lines or isolated paragraphs:
+    // those heuristics can turn ordinary body text into false chapters.
+    final explicitHeading = RegExp(
+      r'^(cap[ií]tulo|chapter|parte|part|secci[oó]n|section|cap\\.|libro|book)\\b',
+      caseSensitive: false,
+    );
+    final numberedHeading = RegExp(
+      r'^(?:\\d{1,3}[.)]|[IVXLCDM]{1,8}[.)])\\s+[A-ZÁÉÍÓÚÑ]',
+      caseSensitive: false,
+    );
+    final standaloneRoman = RegExp(r'^[IVXLCDM]{1,8}$');
 
     for (int i = 0; i < lines.length; i++) {
       final line = lines[i].trim();
-      if (line.length < 3 || line.length > 80) {
-        offset += lines[i].length + 1;
-        continue;
-      }
-      bool isHeader = false;
-      // Patrón de capítulo explícito
-      if (patterns.hasMatch(line)) {
-        isHeader = true;
-      }
-      // Línea en mayúsculas (al menos 3 letras)
-      else if (line.toUpperCase() == line && RegExp(r'[A-ZÁÉÍÓÚÑ]').hasMatch(line) && line.length >= 3) {
-        isHeader = true;
-      }
-      // Línea corta aislada (línea anterior y siguiente vacías)
-      else if (i > 0 && i < lines.length - 1 && lines[i - 1].trim().isEmpty && lines[i + 1].trim().isEmpty && line.length <= 60) {
-        isHeader = true;
-      }
+      final isShortTitle = line.length >= 3 && line.length <= 80;
+      final isHeader = isShortTitle &&
+          (explicitHeading.hasMatch(line) ||
+              numberedHeading.hasMatch(line) ||
+              standaloneRoman.hasMatch(line));
 
       if (isHeader) {
         chapters.add(Chapter(

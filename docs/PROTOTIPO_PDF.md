@@ -1,6 +1,6 @@
 # Prototipo PDF de Pasapagina
 
-## Incluido en esta primera base
+## Incluido actualmente
 
 - Aplicación Flutter con tema crema y acentos naranja/verde agua.
 - Selector de documentos para elegir un PDF local.
@@ -8,30 +8,25 @@
 - Vista de texto redistribuida por Flutter y control de tamaño.
 - Toques en los márgenes para avanzar y retroceder.
 - Vista PDF original para documentos escaneados o cuya extracción no funcione.
+- Biblioteca local, ajustes de lectura, posiciones de reanudación y marcadores guardados en el dispositivo.
+- Índice de capítulos cuando se pueden detectar títulos.
 
-## Ejecutar en Android
+## Validación
 
-Desde la raíz del repositorio, en un entorno con Flutter instalado:
-
-```bash
-flutter pub get
-flutter analyze
-flutter test
-flutter run
-```
-
-Si el proyecto aún no tiene las carpetas nativas generadas por Flutter, ejecuta `flutter create . --platforms=android` desde la raíz antes de compilar.
+Los cambios deben comprobarse con `flutter analyze`, `flutter test` y una compilación Android en el entorno de destino. La existencia de estas instrucciones no implica que la última configuración Gradle esté validada.
 
 ## Límites conocidos
 
-Este es un prototipo de interacción, no una versión terminada. La lectura adaptativa inicial concatena el texto extraído de cada página; PDFs con columnas, encabezados, notas o un orden de lectura complejo pueden necesitar un algoritmo de reconstrucción más avanzado. Los PDF escaneados sin capa de texto se envían al modo original; OCR queda fuera de esta fase.
+La lectura adaptable concatena el texto extraído de cada página. PDFs con columnas, encabezados, notas o un orden de lectura complejo pueden necesitar un algoritmo de reconstrucción más avanzado. Los PDF escaneados sin capa de texto se abren en modo original; OCR no está implementado.
 
-La posición de lectura y los marcadores todavía no se guardan de forma persistente. El cambio de tamaño conserva una aproximación de la posición por desplazamiento, pero aún no usa un ancla semántica de párrafo/caracteres. Eso debe resolverse antes de considerar cumplida la continuidad prometida por Pasapagina.
+La posición guardada sigue siendo una estimación basada en la proporción del desplazamiento y la longitud total del texto, no un ancla semántica estable de párrafo y carácter. Por eso, cambiar el tamaño, la orientación o la distribución del texto puede no conservar exactamente el mismo pasaje. La clave de posición se basa en la ruta completa para evitar colisiones entre archivos con el mismo nombre; se conserva una migración desde las claves antiguas por nombre.
 
-## Siguiente trabajo técnico
+La persistencia se realiza localmente mediante `shared_preferences`; no hay sincronización entre dispositivos ni copia en la nube.
 
-1. Ejecutar análisis, pruebas y compilación en la versión Flutter disponible en el equipo.
-2. Probar con una novela PDF real y revisar el orden del texto extraído.
-3. Sustituir el desplazamiento aproximado por un ancla de texto estable.
-4. Añadir almacenamiento local para biblioteca, reanudación y marcadores independientes.
-5. Añadir pruebas con PDFs de varias columnas y escaneados.
+## Próximas mejoras
+
+1. Probar con novelas PDF reales y revisar el orden del texto extraído.
+2. Diseñar un ancla semántica estable para restaurar el pasaje exacto tras cambios de tamaño u orientación.
+3. Añadir pruebas de regresión para reanudación, marcadores y cambios de tamaño.
+4. Evaluar PDFs de varias columnas y documentos escaneados.
+5. Validar la configuración Android/Gradle actual en una compilación limpia.

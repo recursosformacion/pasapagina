@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -40,6 +42,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   ReaderMode _mode = ReaderMode.adaptive;
   double _fontSize = 20;
   int _anchor = 0;
+  Timer? _positionSaveTimer;
+  double _scaleStartFontSize = 20;
 
   Color get _bgColor {
     switch (_settings.theme) {
@@ -119,23 +123,34 @@ class _ReaderScreenState extends State<ReaderScreen> {
       final ratio = extent > 0 ? (offset / extent).clamp(0.0, 1.0) : 0.0;
       final charIndex = ratio * _document!.fullText.length;
       _anchor = charIndex.round();
-      _positionService.save(widget.path, charIndex);
-      _libraryService.updatePosition(widget.path, charIndex);
+      _positionSaveTimer?.cancel();
+      _positionSaveTimer = Timer(const Duration(milliseconds: 650), () {
+        _persistPosition(charIndex);
+      });
     }
+  }
+
+  Future<void> _persistPosition(double position) async {
+    await _positionService.save(widget.path, position);
+    await _libraryService.updatePosition(widget.path, position);
+  }
+
+  void _restoreAnchorAfterLayout() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients || _document == null) return;
+      final extent = _scrollController.position.maxScrollExtent;
+      final ratio = _document!.fullText.isNotEmpty
+          ? (_anchor / _document!.fullText.length).clamp(0.0, 1.0)
+          : 0.0;
+      _scrollController.jumpTo((ratio * extent).clamp(0.0, extent));
+    });
   }
 
   void _changeFont(double value) {
     _rememberAnchor();
     setState(() => _fontSize = value);
     _settingsService.saveSettings(_settings.copyWith(fontSize: value), widget.path);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients && _document != null) {
-        final extent = _scrollController.position.maxScrollExtent;
-        final ratio = _document!.fullText.isNotEmpty ? (_anchor / _document!.fullText.length).clamp(0.0, 1.0) : 0.0;
-        final offset = ratio * extent;
-        _scrollController.jumpTo(offset.clamp(0.0, extent));
-      }
-    });
+    _restoreAnchorAfterLayout();
   }
 
   String _textFragmentAt(double offset) {
@@ -261,6 +276,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   void dispose() {
+    _positionSaveTimer?.cancel();
     if (_scrollController.hasClients && _document != null) {
       final offset = _scrollController.offset;
       final extent = _scrollController.position.maxScrollExtent;
@@ -271,7 +287,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         time: DateTime.now(),
         position: charIndex,
       );
-      _positionService.save(widget.path, charIndex);
+      _persistPosition(charIndex);
     }
     _scrollController.dispose();
     super.dispose();
@@ -313,7 +329,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
         controller: _scrollController,
         padding: EdgeInsets.fromLTRB(_settings.margins, 36, _settings.margins, 48),
         child: GestureDetector(
+          onScaleStart: _onScaleStart,
           onScaleUpdate: _onScaleUpdate,
+          onScaleEnd: _onScaleEnd,
           child: SelectableText(
             _document!.fullText,
             style: TextStyle(
@@ -328,9 +346,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
+  void _onScaleStart(ScaleStartDetails details) {
+    _rememberAnchor();
+    _scaleStartFontSize = _fontSize;
+  }
+
   void _onScaleUpdate(ScaleUpdateDetails details) {
-    final newSize = (_fontSize * details.scale).clamp(10.0, 60.0);
-    _changeFont(newSize);
+    final newSize = (_scaleStartFontSize * details.scale).clamp(10.0, 60.0);
+    if ((newSize - _fontSize).abs() < 0.15) return;
+    setState(() => _fontSize = newSize);
+  }
+
+  void _onScaleEnd(ScaleEndDetails details) {
+    _settingsService.saveSettings(_settings.copyWith(fontSize: _fontSize), widget.path);
+    _restoreAnchorAfterLayout();
   }
 
   Widget _buildPageMargins() {

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../services/pdf_text_extractor.dart';
@@ -30,6 +31,8 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   final _extractor = PdfTextExtractor();
   final _scrollController = ScrollController();
+  final _textKey = GlobalKey();
+  static const double _textTopPadding = 36;
   final _positionService = ReadPositionService();
   final _libraryService = LibraryService();
   final _markerService = MarkerService();
@@ -111,23 +114,70 @@ class _ReaderScreenState extends State<ReaderScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients || _document == null) return;
       final extent = _scrollController.position.maxScrollExtent;
-      final ratio = _document!.fullText.isNotEmpty ? (target / _document!.fullText.length).clamp(0.0, 1.0) : 0.0;
-      final offset = ratio * extent;
+      final index = target.round().clamp(0, _document!.fullText.length);
+      final offset = _offsetForTextIndex(index);
       _scrollController.jumpTo(offset.clamp(0.0, extent));
     });
+  }
+
+  RenderParagraph? get _textParagraph {
+    final renderObject = _textKey.currentContext?.findRenderObject();
+    return renderObject is RenderParagraph ? renderObject : null;
+  }
+
+  int _currentTextIndex() {
+    final document = _document;
+    if (document == null || document.fullText.isEmpty || !_scrollController.hasClients) {
+      return 0;
+    }
+
+    final paragraph = _textParagraph;
+    if (paragraph != null) {
+      // The paragraph starts below the top padding inside the scroll view.
+      final localY = (_scrollController.offset - _textTopPadding)
+          .clamp(0.0, paragraph.size.height);
+      final index = paragraph
+          .getPositionForOffset(Offset(0, localY))
+          .offset;
+      return index.clamp(0, document.fullText.length);
+    }
+
+    // Defensive fallback for Flutter versions where SelectableText does not
+    // expose its paragraph render object through the key.
+    final extent = _scrollController.position.maxScrollExtent;
+    final ratio = extent > 0 ? (_scrollController.offset / extent).clamp(0.0, 1.0) : 0.0;
+    return (ratio * document.fullText.length).round();
+  }
+
+  double _offsetForTextIndex(int index) {
+    final document = _document;
+    if (document == null || document.fullText.isEmpty || !_scrollController.hasClients) {
+      return 0;
+    }
+
+    final paragraph = _textParagraph;
+    if (paragraph != null) {
+      final safeIndex = index.clamp(0, document.fullText.length);
+      final caret = paragraph.getOffsetForCaret(
+        TextPosition(offset: safeIndex),
+        Rect.zero,
+      );
+      return caret.dy + _textTopPadding;
+    }
+
+    final extent = _scrollController.position.maxScrollExtent;
+    final ratio = (index / document.fullText.length).clamp(0.0, 1.0);
+    return ratio * extent;
   }
 
   void _rememberAnchor() {
     if (_scalingText) return;
     if (_scrollController.hasClients && _document != null) {
-      final offset = _scrollController.offset;
-      final extent = _scrollController.position.maxScrollExtent;
-      final ratio = extent > 0 ? (offset / extent).clamp(0.0, 1.0) : 0.0;
-      final charIndex = ratio * _document!.fullText.length;
-      _anchor = charIndex.round();
+      _anchor = _currentTextIndex();
+      final savedIndex = _anchor.toDouble();
       _positionSaveTimer?.cancel();
       _positionSaveTimer = Timer(const Duration(milliseconds: 650), () {
-        _persistPosition(charIndex);
+        _persistPosition(savedIndex);
       });
     }
   }
@@ -139,12 +189,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   void _restoreAnchorAfterLayout() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients || _document == null) return;
+      if (!mounted || !_scrollController.hasClients || _document == null) return;
       final extent = _scrollController.position.maxScrollExtent;
-      final ratio = _document!.fullText.isNotEmpty
-          ? (_anchor / _document!.fullText.length).clamp(0.0, 1.0)
-          : 0.0;
-      _scrollController.jumpTo((ratio * extent).clamp(0.0, extent));
+      final offset = _offsetForTextIndex(_anchor);
+      _scrollController.jumpTo(offset.clamp(0.0, extent));
     });
   }
 
@@ -157,10 +205,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   String _textFragmentAt(double offset) {
     if (_document == null) return '';
-    final extent = _scrollController.position.maxScrollExtent;
-    if (extent <= 0) return '';
-    final ratio = (offset / extent).clamp(0.0, 1.0);
-    final index = (ratio * _document!.fullText.length).round().clamp(0, _document!.fullText.length - 1);
+    if (_document!.fullText.isEmpty) return '';
+    final index = _currentTextIndex().clamp(0, _document!.fullText.length - 1);
     const half = 60;
     final start = (index - half).clamp(0, _document!.fullText.length);
     final end = (index + half).clamp(0, _document!.fullText.length);
@@ -203,9 +249,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
     if (!mounted || result == null) return;
     final offset = _scrollController.hasClients ? _scrollController.offset : 0.0;
-    final extent = _scrollController.hasClients ? _scrollController.position.maxScrollExtent : 0.0;
-    final ratio = extent > 0 ? (offset / extent).clamp(0.0, 1.0) : 0.0;
-    final charIndex = (ratio * (_document?.fullText.length ?? 0)).roundToDouble();
+    final charIndex = _currentTextIndex().toDouble();
     await _markerService.saveMarker(
       Marker(
         id: '${widget.path}:${DateTime.now().millisecondsSinceEpoch}',
@@ -280,10 +324,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void dispose() {
     _positionSaveTimer?.cancel();
     if (_scrollController.hasClients && _document != null) {
-      final offset = _scrollController.offset;
-      final extent = _scrollController.position.maxScrollExtent;
-      final ratio = extent > 0 ? (offset / extent).clamp(0.0, 1.0) : 0.0;
-      final charIndex = (ratio * _document!.fullText.length).roundToDouble();
+      final charIndex = _currentTextIndex().toDouble();
       _libraryService.markRead(
         widget.path,
         time: DateTime.now(),
@@ -329,12 +370,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
       },
       child: SingleChildScrollView(
         controller: _scrollController,
-        padding: EdgeInsets.fromLTRB(_settings.margins, 36, _settings.margins, 48),
+        padding: EdgeInsets.fromLTRB(_settings.margins, _textTopPadding, _settings.margins, 48),
         child: GestureDetector(
           onScaleStart: _onScaleStart,
           onScaleUpdate: _onScaleUpdate,
           onScaleEnd: _onScaleEnd,
           child: SelectableText(
+            key: _textKey,
             _document!.fullText,
             style: TextStyle(
               fontSize: _fontSize,

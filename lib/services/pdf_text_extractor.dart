@@ -26,7 +26,7 @@ class PdfTextExtractor {
         pageTexts.add(normalizePageText(raw?.fullText ?? ''));
       }
       final usable = pageTexts.where((text) => text.isNotEmpty).length;
-      final fullText = pageTexts.where((text) => text.isNotEmpty).join('\\n');
+      final fullText = pageTexts.where((text) => text.isNotEmpty).join('\n');
       if (usable == 0 || fullText.trim().length < 40) {
         throw const PdfExtractionException(
           'Este PDF no contiene suficiente texto seleccionable. Puede ser un documento escaneado; prueba el modo PDF original.',

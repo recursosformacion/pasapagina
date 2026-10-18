@@ -60,11 +60,11 @@ class PdfTextExtractor {
     // Avoid guessing from arbitrary uppercase lines or isolated paragraphs:
     // those heuristics can turn ordinary body text into false chapters.
     final explicitHeading = RegExp(
-      r'^(cap[ií]tulo|chapter|parte|part|secci[oó]n|section|cap\\.|libro|book)\\b',
+      r'^(cap[ií]tulo|chapter|parte|part|secci[oó]n|section|cap\.|libro|book)\b',
       caseSensitive: false,
     );
     final numberedHeading = RegExp(
-      r'^(?:\\d{1,3}[.)]|[IVXLCDM]{1,8}[.)])\\s+[A-ZÁÉÍÓÚÑ]',
+      r'^(?:\d{1,3}[.)]|[IVXLCDM]{1,8}[.)])\s+[A-ZÁÉÍÓÚÑ]',
       caseSensitive: false,
     );
     final standaloneRoman = RegExp(r'^[IVXLCDM]{1,8}$');

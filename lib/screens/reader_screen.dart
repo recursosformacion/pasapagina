@@ -248,7 +248,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
       ),
     );
     if (!mounted || result == null) return;
-    final offset = _scrollController.hasClients ? _scrollController.offset : 0.0;
     final charIndex = _currentTextIndex().toDouble();
     await _markerService.saveMarker(
       Marker(

@@ -44,6 +44,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   int _anchor = 0;
   Timer? _positionSaveTimer;
   double _scaleStartFontSize = 20;
+  bool _scalingText = false;
 
   Color get _bgColor {
     switch (_settings.theme) {
@@ -117,6 +118,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _rememberAnchor() {
+    if (_scalingText) return;
     if (_scrollController.hasClients && _document != null) {
       final offset = _scrollController.offset;
       final extent = _scrollController.position.maxScrollExtent;
@@ -348,16 +350,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   void _onScaleStart(ScaleStartDetails details) {
     _rememberAnchor();
+    _scalingText = true;
     _scaleStartFontSize = _fontSize;
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
-    final newSize = (_scaleStartFontSize * details.scale).clamp(10.0, 60.0);
+    final newSize = (_scaleStartFontSize * details.scale).clamp(14.0, 34.0);
     if ((newSize - _fontSize).abs() < 0.15) return;
     setState(() => _fontSize = newSize);
   }
 
   void _onScaleEnd(ScaleEndDetails details) {
+    _scalingText = false;
     _settingsService.saveSettings(_settings.copyWith(fontSize: _fontSize), widget.path);
     _restoreAnchorAfterLayout();
   }

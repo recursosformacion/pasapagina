@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
@@ -24,6 +25,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
   String _sortBy = 'lastRead';
   bool _loading = true;
   String? _loadError;
+  String _startupCode = 'ARR-BIB01';
+  String _startupPhase = 'Preparando la biblioteca';
   bool _hasAutoOpened = false;
 
   @override
@@ -36,9 +39,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
     setState(() {
       _loading = true;
       _loadError = null;
+      _startupCode = 'ARR-BIB01';
+      _startupPhase = 'Leyendo la biblioteca guardada';
     });
     try {
-      final books = await _libraryService.getAllBooks();
+      final books = await _libraryService
+          .getAllBooks()
+          .timeout(const Duration(seconds: 15), onTimeout: () {
+        throw TimeoutException('La lectura de la biblioteca superó los 15 segundos');
+      });
       if (!mounted) return;
       setState(() {
         _books = books;
@@ -53,12 +62,19 @@ class _LibraryScreenState extends State<LibraryScreen> {
         await _openBook(inProgress.first);
       }
     } catch (error, stackTrace) {
-      debugPrint('Error al cargar la biblioteca: $error');
+      final timedOut = error is TimeoutException;
+      final code = timedOut ? 'ARR-BIB-T01' : 'ARR-BIB-E01';
+      debugPrint('[$code] Error al cargar la biblioteca: $error');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _loadError = 'No se pudo cargar la biblioteca. Puedes volver a intentarlo.';
+        _startupCode = code;
+        _startupPhase = timedOut
+            ? 'La carga de la biblioteca ha tardado demasiado'
+            : 'Ha fallado la lectura de la biblioteca';
+        _loadError =
+            'No se pudo cargar la biblioteca. Código: $code. Puedes reintentar.';
       });
     }
   }
@@ -364,7 +380,25 @@ class _LibraryScreenState extends State<LibraryScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 18),
+                    const Text('Preparando Pasapágina…'),
+                    const SizedBox(height: 8),
+                    Text(
+                      '$_startupCode · $_startupPhase',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            )
           : _loadError != null
               ? Center(
                   child: Padding(

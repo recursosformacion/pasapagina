@@ -385,13 +385,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
         _rememberAnchor();
         return false;
       },
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        padding: EdgeInsets.fromLTRB(_settings.margins, _textTopPadding, _settings.margins, 48),
-        child: GestureDetector(
-          onScaleStart: _onScaleStart,
-          onScaleUpdate: _onScaleUpdate,
-          onScaleEnd: _onScaleEnd,
+      child: GestureDetector(
+        // Keep pinch recognition outside SelectableText so its selection
+        // recognizers do not compete with the reader's font-size gesture.
+        onScaleStart: _onScaleStart,
+        onScaleUpdate: _onScaleUpdate,
+        onScaleEnd: _onScaleEnd,
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          padding: EdgeInsets.fromLTRB(_settings.margins, _textTopPadding, _settings.margins, 48),
           child: SelectableText.rich(
             TextSpan(children: _styledTextSpans()),
             key: _textKey,

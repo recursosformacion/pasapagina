@@ -3,14 +3,15 @@ import 'package:pasapagina/services/pdf_text_extractor.dart';
 
 void main() {
   group('PdfTextExtractor.normalizePageText', () {
-    test('joins visual line wraps and removes blank gaps between text blocks', () {
+    test('preserves line breaks needed for paragraphs and chapter headings', () {
       const raw = 'La primera línea del párrafo\n'
           'continúa aquí.\n\n'
-          'El siguiente párrafo\n'
-          'también continúa.';
+          'Capítulo 2. El siguiente tema\n'
+          'Contenido del capítulo.';
       expect(
         PdfTextExtractor.normalizePageText(raw),
-        'La primera línea del párrafo continúa aquí.\nEl siguiente párrafo también continúa.',
+        'La primera línea del párrafo\ncontinúa aquí.\n\n'
+        'Capítulo 2. El siguiente tema\nContenido del capítulo.',
       );
     });
   });

@@ -39,24 +39,13 @@ class PdfTextExtractor {
     }
   }
 
-  /// Removes PDF layout line wraps while retaining paragraph boundaries as a
-  /// single newline. PDF pages often expose every visual line as a newline;
-  /// showing those directly makes text wrap prematurely and creates blank gaps.
+  /// Conserva los saltos que entrega el extractor PDF. Son necesarios para
+  /// separar encabezados y párrafos; unirlos todos hace que el índice pierda
+  /// los capítulos y que los títulos queden pegados al texto.
   static String normalizePageText(String rawText) {
-    final text = rawText.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
-    if (text.isEmpty) return '';
-
-    // A blank line separates blocks; soft line breaks within each block are
-    // joined with spaces so Flutter can reflow the text to the screen width.
-    final blocks = text.split(RegExp(r'\n[ \t]*\n+'));
-    return blocks
-        .map((block) => block
-            .split('\n')
-            .map((line) => line.trim())
-            .where((line) => line.isNotEmpty)
-            .join(' '))
-        .where((block) => block.isNotEmpty)
-        .join('\n');
+    final text = rawText.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    final lines = text.split('\n').map((line) => line.trimRight()).toList();
+    return lines.join('\n').replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
   }
 
   /// Heurística para detectar encabezados de capítulo en el texto normalizado.

@@ -23,6 +23,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   String _query = '';
   String _sortBy = 'lastRead';
   bool _loading = true;
+  String? _loadError;
   bool _hasAutoOpened = false;
 
   @override
@@ -32,19 +33,33 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Future<void> _loadBooks({bool autoOpenLastRead = true}) async {
-    final books = await _libraryService.getAllBooks();
-    if (!mounted) return;
     setState(() {
-      _books = books;
-      _displayed = _applyFilters(books);
-      _loading = false;
+      _loading = true;
+      _loadError = null;
     });
-    // Si hay un libro en curso (último leído), abrirlo automáticamente.
-    if (!autoOpenLastRead || _hasAutoOpened) return;
-    final inProgress = _libraryService.getReadingInProgress(books);
-    if (inProgress.isNotEmpty && mounted) {
-      _hasAutoOpened = true;
-      await _openBook(inProgress.first);
+    try {
+      final books = await _libraryService.getAllBooks();
+      if (!mounted) return;
+      setState(() {
+        _books = books;
+        _displayed = _applyFilters(books);
+        _loading = false;
+      });
+      // Si hay un libro en curso (último leído), abrirlo automáticamente.
+      if (!autoOpenLastRead || _hasAutoOpened) return;
+      final inProgress = _libraryService.getReadingInProgress(books);
+      if (inProgress.isNotEmpty && mounted) {
+        _hasAutoOpened = true;
+        await _openBook(inProgress.first);
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Error al cargar la biblioteca: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = 'No se pudo cargar la biblioteca. Puedes volver a intentarlo.';
+      });
     }
   }
 
@@ -350,7 +365,27 @@ class _LibraryScreenState extends State<LibraryScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
+          : _loadError != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.cloud_off_rounded, size: 44),
+                        const SizedBox(height: 12),
+                        Text(_loadError!, textAlign: TextAlign.center),
+                        const SizedBox(height: 16),
+                        FilledButton.icon(
+                          onPressed: () => _loadBooks(),
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Reintentar'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : Column(
               children: [
                 if (_readingInProgress.isNotEmpty) _buildReadingInProgress(),
                 Expanded(

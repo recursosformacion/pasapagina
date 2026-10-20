@@ -296,15 +296,24 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _jumpToChapter(Chapter chapter) {
-    if (!_scrollController.hasClients || _document == null) return;
-    final extent = _scrollController.position.maxScrollExtent;
-    final offset = _offsetForTextIndex(chapter.startIndex);
+    if (_document == null) return;
     _anchor = chapter.startIndex;
-    _scrollController.animateTo(
-      offset.clamp(0.0, extent),
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-    );
+
+    // Wait until the chapter sheet has closed and the reader is laid out,
+    // then calculate the target from the actual text caret position.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients || _document == null) return;
+      final extent = _scrollController.position.maxScrollExtent;
+      final offset = _offsetForTextIndex(chapter.startIndex);
+      // Leave a little breathing room above the heading instead of placing
+      // its first line flush against the top edge.
+      final target = (offset - 12).clamp(0.0, extent);
+      _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+      );
+    });
   }
 
   void _step(int direction) {

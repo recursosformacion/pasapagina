@@ -71,7 +71,7 @@ class PdfTextExtractor {
     // not a heading. Generic numbered lines are intentionally not inferred:
     // they frequently occur in lists and running text.
     final explicitHeading = RegExp(
-      r'^(?:cap[ií]tulo|chapter|cap\.|libro|book|parte|part|secci[oó]n|section)\s+(?:(?:n[úu]m(?:ero)?\.?\s*)?\d{1,3}|[IVXLCDM]{1,8}|prim(?:er|ero|era)|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|nov en[oa]|d[eé]cim[oa])(?:\s*(?:[:.\-–—])\s*.*)?
+      r'^(?:cap[ií]tulo|chapter|cap\.|libro|book|parte|part|secci[oó]n|section)\s+(?:(?:n[úu]m(?:ero)?\.?\s*)?\d{1,3}|[IVXLCDM]{1,8}|prim(?:er|ero|era)|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|noven[oa]|d[eé]cim[oa])(?:\s*(?:[:.\-–—])\s*.*)?
 
       if (isHeader) {
         chapters.add(Chapter(

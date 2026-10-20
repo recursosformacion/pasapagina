@@ -66,24 +66,89 @@ class PdfTextExtractor {
       return pageTexts.length - 1;
     }
 
-    // Avoid guessing from arbitrary uppercase lines or isolated paragraphs:
-    // those heuristics can turn ordinary body text into false chapters.
+    // Require a chapter marker followed by a number, Roman numeral or
+    // ordinal. A sentence such as "Parte del panel..." is ordinary prose,
+    // not a heading. Generic numbered lines are intentionally not inferred:
+    // they frequently occur in lists and running text.
     final explicitHeading = RegExp(
-      r'^(cap[ií]tulo|chapter|parte|part|secci[oó]n|section|cap\.|libro|book)\b',
+      r'^(?:cap[ií]tulo|chapter|cap\.|libro|book|parte|part|secci[oó]n|section)\s+(?:(?:n[úu]m(?:ero)?\.?\s*)?\d{1,3}|[IVXLCDM]{1,8}|prim(?:er|ero|era)|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|nov en[oa]|d[eé]cim[oa])(?:\s*(?:[:.\-–—])\s*.*)?
+
+      if (isHeader) {
+        chapters.add(Chapter(
+          title: line,
+          startIndex: offset,
+          pageIndex: pageIndexFor(offset),
+        ));
+      }
+      offset += lines[i].length + 1;
+    }
+
+    // Set endIndex for each chapter
+    for (int i = 0; i < chapters.length; i++) {
+      final nextStart = i + 1 < chapters.length ? chapters[i + 1].startIndex : fullText.length;
+      chapters[i] = Chapter(
+        title: chapters[i].title,
+        startIndex: chapters[i].startIndex,
+        endIndex: nextStart,
+        pageIndex: chapters[i].pageIndex,
+      );
+    }
+
+    return chapters;
+  }
+}
+
+class PdfExtractionException implements Exception {
+  const PdfExtractionException(this.message);
+  final String message;
+
+  @override
+  String toString() => message;
+}
+,
       caseSensitive: false,
     );
-    final numberedHeading = RegExp(
-      r'^(?:\d{1,3}[.)]|[IVXLCDM]{1,8}[.)])\s+[A-ZÁÉÍÓÚÑ]',
-      caseSensitive: false,
-    );
-    final standaloneRoman = RegExp(r'^[IVXLCDM]{1,8}$');
+    final standaloneRoman = RegExp(r'^[IVXLCDM]{1,8}
+
+      if (isHeader) {
+        chapters.add(Chapter(
+          title: line,
+          startIndex: offset,
+          pageIndex: pageIndexFor(offset),
+        ));
+      }
+      offset += lines[i].length + 1;
+    }
+
+    // Set endIndex for each chapter
+    for (int i = 0; i < chapters.length; i++) {
+      final nextStart = i + 1 < chapters.length ? chapters[i + 1].startIndex : fullText.length;
+      chapters[i] = Chapter(
+        title: chapters[i].title,
+        startIndex: chapters[i].startIndex,
+        endIndex: nextStart,
+        pageIndex: chapters[i].pageIndex,
+      );
+    }
+
+    return chapters;
+  }
+}
+
+class PdfExtractionException implements Exception {
+  const PdfExtractionException(this.message);
+  final String message;
+
+  @override
+  String toString() => message;
+}
+);
 
     for (int i = 0; i < lines.length; i++) {
       final line = lines[i].trim();
       final isShortTitle = line.length >= 3 && line.length <= 80;
       final isHeader = isShortTitle &&
           (explicitHeading.hasMatch(line) ||
-              numberedHeading.hasMatch(line) ||
               standaloneRoman.hasMatch(line));
 
       if (isHeader) {

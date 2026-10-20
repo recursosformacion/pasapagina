@@ -48,16 +48,18 @@ class PdfTextExtractor {
     return lines.join('\n').replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
   }
 
-  /// Heurística para detectar encabezados de capítulo en el texto normalizado.
+  /// Detecta encabezados conservadoramente para no convertir frases del texto
+  /// normal en capítulos. Los números sueltos de listas no son suficientes.
   static List<Chapter> detectChapters(String fullText, List<String> pageTexts) {
     final chapters = <Chapter>[];
     if (fullText.isEmpty) return chapters;
 
     final lines = fullText.split('\n');
     int offset = 0;
+
     int? pageIndexFor(int charIndex) {
-      int acc = 0;
-      for (int i = 0; i < pageTexts.length; i++) {
+      var acc = 0;
+      for (var i = 0; i < pageTexts.length; i++) {
         final page = pageTexts[i].trim();
         if (page.isEmpty) continue;
         if (charIndex < acc + page.length + 1) return i;
@@ -66,104 +68,35 @@ class PdfTextExtractor {
       return pageTexts.length - 1;
     }
 
-    // Require a chapter marker followed by a number, Roman numeral or
-    // ordinal. A sentence such as "Parte del panel..." is ordinary prose,
-    // not a heading. Generic numbered lines are intentionally not inferred:
-    // they frequently occur in lists and running text.
+    // A heading marker must be followed by a number, Roman numeral or
+    // ordinal. In particular, "parte del panel..." is ordinary prose.
     final explicitHeading = RegExp(
-      r'^(?:cap[ií]tulo|chapter|cap\.|libro|book|parte|part|secci[oó]n|section)\s+(?:(?:n[úu]m(?:ero)?\.?\s*)?\d{1,3}|[IVXLCDM]{1,8}|prim(?:er|ero|era)|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|noven[oa]|d[eé]cim[oa])(?:\s*(?:[:.\-–—])\s*.*)?
-
-      if (isHeader) {
-        chapters.add(Chapter(
-          title: line,
-          startIndex: offset,
-          pageIndex: pageIndexFor(offset),
-        ));
-      }
-      offset += lines[i].length + 1;
-    }
-
-    // Set endIndex for each chapter
-    for (int i = 0; i < chapters.length; i++) {
-      final nextStart = i + 1 < chapters.length ? chapters[i + 1].startIndex : fullText.length;
-      chapters[i] = Chapter(
-        title: chapters[i].title,
-        startIndex: chapters[i].startIndex,
-        endIndex: nextStart,
-        pageIndex: chapters[i].pageIndex,
-      );
-    }
-
-    return chapters;
-  }
-}
-
-class PdfExtractionException implements Exception {
-  const PdfExtractionException(this.message);
-  final String message;
-
-  @override
-  String toString() => message;
-}
-,
+      r'^(?:cap[ií]tulo|chapter|cap\.|libro|book|parte|part|secci[oó]n|section)\s+(?:(?:n[úu]m(?:ero)?\.?\s*)?\d{1,3}|[IVXLCDM]{1,8}|prim(?:er|ero|era)|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|noven[oa]|d[eé]cim[oa])(?:\s*(?:[:.\-–—])\s*.*)?$',
       caseSensitive: false,
     );
-    final standaloneRoman = RegExp(r'^[IVXLCDM]{1,8}
+    final standaloneRoman = RegExp(r'^[IVXLCDM]{1,8}$');
 
-      if (isHeader) {
-        chapters.add(Chapter(
-          title: line,
-          startIndex: offset,
-          pageIndex: pageIndexFor(offset),
-        ));
-      }
-      offset += lines[i].length + 1;
-    }
-
-    // Set endIndex for each chapter
-    for (int i = 0; i < chapters.length; i++) {
-      final nextStart = i + 1 < chapters.length ? chapters[i + 1].startIndex : fullText.length;
-      chapters[i] = Chapter(
-        title: chapters[i].title,
-        startIndex: chapters[i].startIndex,
-        endIndex: nextStart,
-        pageIndex: chapters[i].pageIndex,
-      );
-    }
-
-    return chapters;
-  }
-}
-
-class PdfExtractionException implements Exception {
-  const PdfExtractionException(this.message);
-  final String message;
-
-  @override
-  String toString() => message;
-}
-);
-
-    for (int i = 0; i < lines.length; i++) {
+    for (var i = 0; i < lines.length; i++) {
       final line = lines[i].trim();
       final isShortTitle = line.length >= 3 && line.length <= 80;
       final isHeader = isShortTitle &&
-          (explicitHeading.hasMatch(line) ||
-              standaloneRoman.hasMatch(line));
+          (explicitHeading.hasMatch(line) || standaloneRoman.hasMatch(line));
 
       if (isHeader) {
         chapters.add(Chapter(
           title: line,
-          startIndex: offset,
+          startIndex: offset + lines[i].indexOf(line),
           pageIndex: pageIndexFor(offset),
         ));
       }
       offset += lines[i].length + 1;
     }
 
-    // Set endIndex for each chapter
-    for (int i = 0; i < chapters.length; i++) {
-      final nextStart = i + 1 < chapters.length ? chapters[i + 1].startIndex : fullText.length;
+    // The end of each chapter is the start of the next one.
+    for (var i = 0; i < chapters.length; i++) {
+      final nextStart = i + 1 < chapters.length
+          ? chapters[i + 1].startIndex
+          : fullText.length;
       chapters[i] = Chapter(
         title: chapters[i].title,
         startIndex: chapters[i].startIndex,

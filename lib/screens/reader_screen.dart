@@ -540,7 +540,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Widget _buildControls() {
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final actionWidth = (screenWidth - 52) / 2;
+    final actionWidth = (screenWidth - 64) / 2;
 
     Widget action({
       required IconData icon,
@@ -683,7 +683,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       ),
                       action(
                         icon: Icons.tune_rounded,
-                        label: 'Ajustes de lectura',
+                        label: 'Ajustes',
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute<void>(
                             builder: (_) => ReadingSettingsScreen(bookId: widget.path),
@@ -692,7 +692,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       ),
                       action(
                         icon: Icons.format_list_numbered_rounded,
-                        label: 'Índice de capítulos',
+                        label: 'Índice',
                         onPressed: _openChapterIndex,
                       ),
                     ],

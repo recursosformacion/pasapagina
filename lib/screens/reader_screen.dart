@@ -539,106 +539,192 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Widget _buildControls() {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final actionWidth = (screenWidth - 52) / 2;
+
+    Widget action({
+      required IconData icon,
+      required String label,
+      required VoidCallback onPressed,
+    }) {
+      return SizedBox(
+        width: actionWidth,
+        height: 54,
+        child: OutlinedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 20),
+          label: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF28685D),
+            side: const BorderSide(color: Color(0xFFB8CFC3)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+          ),
+        ),
+      );
+    }
+
     return Positioned(
-      left: 0,
-      right: 0,
-      top: 0,
-      child: Material(
-        color: _bgColor.withValues(alpha: 0.97),
-        elevation: 4,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 14),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
+      left: 12,
+      right: 12,
+      bottom: 12,
+      child: SafeArea(
+        top: false,
+        child: Material(
+          color: _bgColor.withValues(alpha: 0.98),
+          elevation: 10,
+          borderRadius: BorderRadius.circular(24),
+          clipBehavior: Clip.antiAlias,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.68,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  IconButton(
-                    tooltip: 'Volver a la biblioteca',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.arrow_back_rounded),
-                  ),
-                  Expanded(
-                    child: Text(
-                      widget.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF34342F)),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Ocultar controles',
-                    onPressed: () => setState(() => _controlsVisible = false),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  const Icon(Icons.text_decrease_rounded),
-                  Expanded(
-                    child: Slider(
-                      min: 14,
-                      max: 34,
-                      divisions: 10,
-                      value: _fontSize,
-                      label: _fontSize.round().toString(),
-                      onChanged: _changeFont,
-                    ),
-                  ),
-                  const Icon(Icons.text_increase_rounded),
-                ],
-              ),
-              Row(
-                children: [
-                  const Icon(Icons.bookmark_add_rounded),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _addMarker,
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Añadir marcador'),
-                    ),
-                  ),
-                  const Icon(Icons.bookmark_rounded),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => MarkersScreen(bookId: widget.path, bookTitle: widget.title),
+                  Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDDEBE1),
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: const Icon(
+                          Icons.menu_book_rounded,
+                          color: Color(0xFF28685D),
                         ),
                       ),
-                      icon:                   const Icon(Icons.list, size: 18),
-                      label: const Text('Ver marcadores'),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Estás leyendo',
+                              style: TextStyle(fontSize: 12, color: Color(0xFF77766D)),
+                            ),
+                            Text(
+                              widget.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF34342F),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton.filledTonal(
+                        tooltip: 'Seguir leyendo',
+                        onPressed: () => setState(() => _controlsVisible = false),
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 2),
+                    decoration: BoxDecoration(
+                      color: _settings.theme == 'dark'
+                          ? const Color(0xFF41413A)
+                          : const Color(0xFFFFF5E5),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.text_decrease_rounded, size: 20),
+                        Expanded(
+                          child: Slider(
+                            min: 14,
+                            max: 34,
+                            divisions: 10,
+                            value: _fontSize,
+                            label: _fontSize.round().toString(),
+                            onChanged: _changeFont,
+                          ),
+                        ),
+                        const Icon(Icons.text_increase_rounded, size: 20),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      action(
+                        icon: Icons.bookmark_add_rounded,
+                        label: 'Añadir marcador',
+                        onPressed: _addMarker,
+                      ),
+                      action(
+                        icon: Icons.bookmarks_outlined,
+                        label: 'Ver marcadores',
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => MarkersScreen(
+                              bookId: widget.path,
+                              bookTitle: widget.title,
+                            ),
+                          ),
+                        ),
+                      ),
+                      action(
+                        icon: Icons.tune_rounded,
+                        label: 'Ajustes de lectura',
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => ReadingSettingsScreen(bookId: widget.path),
+                          ),
+                        ),
+                      ),
+                      action(
+                        icon: Icons.format_list_numbered_rounded,
+                        label: 'Índice de capítulos',
+                        onPressed: _openChapterIndex,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SegmentedButton<ReaderMode>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(
+                        value: ReaderMode.adaptive,
+                        icon: Icon(Icons.text_fields_rounded),
+                        label: Text('Adaptable'),
+                      ),
+                      ButtonSegment(
+                        value: ReaderMode.original,
+                        icon: Icon(Icons.picture_as_pdf_rounded),
+                        label: Text('PDF original'),
+                      ),
+                    ],
+                    selected: {_mode},
+                    onSelectionChanged: (selection) => setState(() {
+                      _mode = selection.first;
+                      _controlsVisible = false;
+                    }),
+                    style: SegmentedButton.styleFrom(
+                      visualDensity: VisualDensity.comfortable,
+                      foregroundColor: const Color(0xFF28685D),
                     ),
                   ),
                 ],
               ),
-              FilledButton.icon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ReadingSettingsScreen(bookId: widget.path),
-                  ),
-                ),
-                icon: const Icon(Icons.tune, size: 18),
-                label: const Text('Ajustes de lectura'),
-              ),
-              FilledButton.icon(
-                onPressed: _openChapterIndex,
-                icon: const Icon(Icons.list_alt, size: 18),
-                label: const Text('Índice de capítulos'),
-              ),
-              SegmentedButton<ReaderMode>(
-                segments: const [
-                  ButtonSegment(value: ReaderMode.adaptive, label: Text('Lectura adaptable')),
-                  ButtonSegment(value: ReaderMode.original, label: Text('PDF original')),
-                ],
-                selected: {_mode},
-                onSelectionChanged: (selection) => setState(() {
-                  _mode = selection.first;
-                  _controlsVisible = false;
-                }),
-              ),
-            ],
+            ),
           ),
         ),
       ),

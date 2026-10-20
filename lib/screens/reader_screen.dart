@@ -142,11 +142,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
       return index.clamp(0, document.fullText.length);
     }
 
-    // Defensive fallback for Flutter versions where SelectableText does not
-    // expose its paragraph render object through the key.
-    final extent = _scrollController.position.maxScrollExtent;
-    final ratio = extent > 0 ? (_scrollController.offset / extent).clamp(0.0, 1.0) : 0.0;
-    return (ratio * document.fullText.length).round();
+    // Use the same text layout for an exact position if SelectableText does
+    // not expose its RenderParagraph on this Flutter version.
+    final painter = _createTextPainterFallback();
+    final localY = (_scrollController.offset - _textTopPadding)
+        .clamp(0.0, painter.height);
+    final index = painter.getPositionForOffset(Offset(0, localY)).offset;
+    painter.dispose();
+    return index.clamp(0, document.fullText.length);
   }
 
   double _offsetForTextIndex(int index) {
@@ -165,9 +168,35 @@ class _ReaderScreenState extends State<ReaderScreen> {
       return caret.dy + _textTopPadding;
     }
 
-    final extent = _scrollController.position.maxScrollExtent;
-    final ratio = (index / document.fullText.length).clamp(0.0, 1.0);
-    return ratio * extent;
+    final painter = _createTextPainterFallback();
+    final safeIndex = index.clamp(0, document.fullText.length);
+    final caret = painter.getOffsetForCaret(
+      TextPosition(offset: safeIndex),
+      Rect.zero,
+    );
+    painter.dispose();
+    return caret.dy + _textTopPadding;
+  }
+
+  TextPainter _createTextPainterFallback() {
+    final painter = TextPainter(
+      text: TextSpan(
+        style: TextStyle(
+          fontSize: _fontSize,
+          height: _settings.lineHeight,
+          color: _inkColor,
+          fontFamily: _settings.fontFamily,
+        ),
+        children: _styledTextSpans(),
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    );
+    final maxWidth = (MediaQuery.sizeOf(context).width - _settings.margins * 2)
+        .clamp(1.0, double.infinity)
+        .toDouble();
+    painter.layout(maxWidth: maxWidth);
+    return painter;
   }
 
   void _rememberAnchor() {
